@@ -39,7 +39,7 @@ from tqdm import tqdm
 
 
 # ─── ROOT ────────────────────────────────────────────────────────────────────
-ROOT     = Path(__file__).resolve().parent
+ROOT     = Path(__file__).resolve().parents[2]   # src/stages/ → project root
 DATA_DIR = ROOT / "data"
 
 # Workers: cap at 32 so we don't thrash on HDDs
