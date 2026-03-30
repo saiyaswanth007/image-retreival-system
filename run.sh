@@ -36,7 +36,7 @@ PYTHON="./dlcv-env/bin/python"
 K=10
 EPOCHS=20
 
-DATASETS=("cifar10" "mnist")
+DATASETS=("cifar10" "mnist" "flowers102")
 NEURAL_METHODS=("nn" "dnn" "cnn" "dsfm" "osag")
 CLASSICAL_METHODS=("lbp" "color")
 ALL_METHODS=("lbp" "color" "nn" "dnn" "cnn" "dsfm" "osag")

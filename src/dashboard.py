@@ -35,7 +35,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 # ─── CONFIGURATION ───────────────────────────────────────────────────────────
 
-DATASETS = ["cifar10", "mnist"]
+DATASETS = ["cifar10", "mnist", "flowers102"]
 METHODS = ["lbp", "color", "nn", "dnn", "cnn", "dsfm", "osag"]
 NEURAL_METHODS = {"nn", "dnn", "cnn", "dsfm", "osag"}
 IMAGE_SIZE = 64  # Preprocessed image size
