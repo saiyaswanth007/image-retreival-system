@@ -198,16 +198,18 @@ echo ""
 echo "╔═══════════════════════════════════════════════════════════════════╗"
 echo "║  PHASE 9: CROSS-DATASET ZERO-SHOT EVALUATION                    ║"
 echo "╚═══════════════════════════════════════════════════════════════════╝"
-echo " Training on CIFAR-10, evaluating on MNIST (and vice versa)..."
+echo " Evaluating generalization across CIFAR-10, MNIST, and Flowers-102..."
 
 for method in "cnn" "osag"; do
-    echo ""
-    echo "▶ Cross-dataset: cifar10 → mnist / $method"
-    $PYTHON src/experiments/cross_dataset.py --source cifar10 --target mnist --method "$method" -k "$K"
-    
-    echo ""
-    echo "▶ Cross-dataset: mnist → cifar10 / $method"
-    $PYTHON src/experiments/cross_dataset.py --source mnist --target cifar10 --method "$method" -k "$K"
+    for src in "cifar10" "mnist" "flowers102"; do
+        for tgt in "cifar10" "mnist" "flowers102"; do
+            if [ "$src" != "$tgt" ]; then
+                echo ""
+                echo "▶ Cross-dataset: $src → $tgt / $method"
+                $PYTHON src/experiments/cross_dataset.py --source "$src" --target "$tgt" --method "$method" -k "$K"
+            fi
+        done
+    done
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
