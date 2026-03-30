@@ -42,6 +42,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from models.nn import ShallowNN
 from models.dnn import DeepNN
 from models.cnn import SimpleCNN
+from features.dsfm import DSFM
+from models.osag import OSAG
 
 SPLITS_BY_DATASET = {
     "cifar10":    ["train", "test"],
@@ -50,9 +52,11 @@ SPLITS_BY_DATASET = {
 }
 
 MODEL_REGISTRY = {
-    "nn":  ShallowNN,
-    "dnn": DeepNN,
-    "cnn": SimpleCNN,
+    "nn":   ShallowNN,
+    "dnn":  DeepNN,
+    "cnn":  SimpleCNN,
+    "dsfm": DSFM,
+    "osag": OSAG,
 }
 
 
@@ -145,7 +149,7 @@ def run_train_model(
     
     if method in ("nn", "dnn"):
         model_kwargs = {"input_dim": C * H * W, "emb_dim": 128, "num_classes": num_classes}
-    elif method == "cnn":
+    elif method in ("cnn", "dsfm", "osag"):
         model_kwargs = {"in_channels": C, "emb_dim": 128, "num_classes": num_classes}
     
     model = ModelClass(**model_kwargs).to(device)
@@ -157,7 +161,8 @@ def run_train_model(
 
     # ── 3. Train Loop ─────────────────────────────────────────────────────────
     print(f"\n[3/3] Training for {epochs} epochs...")
-    criterion = nn.CrossEntropyLoss()
+    # All deep learning methods are optimized for retrieval metric spaces
+    criterion = nn.TripletMarginLoss(margin=1.0)
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
@@ -176,16 +181,46 @@ def run_train_model(
             batch_x, batch_y = batch_x.to(device), batch_y.to(device)
 
             optimizer.zero_grad()
-            logits = model(batch_x)
-            loss = criterion(logits, batch_y)
+            
+            # Triplet Margin Loss with Online Hard Negative Mining for all models
+            if method == "osag":
+                embeddings, ortho_loss = model(batch_x, return_features=True)
+            else:
+                embeddings = model(batch_x, return_features=True)
+                ortho_loss = 0.0
+            
+            # Pairwise euclidean distance matrix
+            dist = torch.cdist(embeddings, embeddings, p=2)
+            labels_eq = batch_y.unsqueeze(0) == batch_y.unsqueeze(1)
+            
+            # Hardest positive: max distance among same class
+            pos_dist = dist * labels_eq.float()
+            hard_pos_idx = pos_dist.argmax(dim=1)
+            
+            # Hardest negative: min distance among different class
+            neg_dist = dist + 1e5 * labels_eq.float()
+            hard_neg_idx = neg_dist.argmin(dim=1)
+            
+            anchor = embeddings
+            positive = embeddings[hard_pos_idx]
+            negative = embeddings[hard_neg_idx]
+            
+            loss = criterion(anchor, positive, negative)
+            if method == "osag":
+                # Apply the orthogonality constraint from the design document
+                loss = loss + 0.1 * ortho_loss
+            
+            # Approximate accuracy: anchor closer to positive than negative
+            with torch.no_grad():
+                d_ap = torch.norm(anchor - positive, dim=1)
+                d_an = torch.norm(anchor - negative, dim=1)
+                correct += (d_ap < d_an).sum().item()
+                total += batch_y.size(0)
             
             loss.backward()
             optimizer.step()
 
             running_loss += loss.item() * batch_x.size(0)
-            _, predicted = logits.max(1)
-            total += batch_y.size(0)
-            correct += predicted.eq(batch_y).sum().item()
 
         scheduler.step()
 

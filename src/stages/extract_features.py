@@ -22,7 +22,8 @@ Usage:
     python src/stages/extract_features.py --dataset mnist   --method lbp --grid 2 --no-uniform
     python src/stages/extract_features.py --dataset flowers102 --method lbp
     python src/stages/extract_features.py --dataset cifar10 --method color
-    python src/stages/extract_features.py --dataset cifar10 --method color --grid 4 --hist-bins 32
+    python src/stages/extract_features.py --dataset cifar10 --method cnn
+    python src/stages/extract_features.py --dataset cifar10 --method dsfm
 """
 
 import argparse
@@ -120,9 +121,56 @@ def run_color(images: np.ndarray, grid: int, hist_bins: int, use_hsv: bool, **_)
     return extract_color(images, grid=grid, hist_bins=hist_bins, use_hsv=use_hsv)
 
 
+def run_neural(images: np.ndarray, method: str, dataset: str, **_) -> np.ndarray:
+    """Extract features using a trained neural network."""
+    import torch
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model_path = ROOT / "outputs" / dataset / method / "model" / "model.pt"
+    
+    assert model_path.exists(), f"[FAIL] Model not found: {model_path}. Train it first!"
+    
+    B, C, H, W = images.shape
+    num_classes = 102 if dataset == "flowers102" else 10
+    
+    if method == "nn":
+        from models.nn import ShallowNN
+        model = ShallowNN(input_dim=C*H*W, emb_dim=128, num_classes=num_classes)
+    elif method == "dnn":
+        from models.dnn import DeepNN
+        model = DeepNN(input_dim=C*H*W, emb_dim=128, num_classes=num_classes)
+    elif method == "cnn":
+        from models.cnn import SimpleCNN
+        model = SimpleCNN(in_channels=C, emb_dim=128, num_classes=num_classes)
+    elif method == "dsfm":
+        from features.dsfm import DSFM
+        model = DSFM(in_channels=C, emb_dim=128, num_classes=num_classes)
+    elif method == "osag":
+        from models.osag import OSAG
+        model = OSAG(in_channels=C, emb_dim=128, num_classes=num_classes)
+        
+    model.load_state_dict(torch.load(model_path, map_location="cpu", weights_only=True))
+    model = model.to(device)
+    model.eval()
+    
+    features_list = []
+    batch_size = 128
+    with torch.no_grad():
+        for i in range(0, B, batch_size):
+            batch = torch.tensor(images[i:i+batch_size], dtype=torch.float32, device=device)
+            feats = model(batch, return_features=True)
+            features_list.append(feats.cpu().numpy())
+            
+    return np.concatenate(features_list, axis=0)
+
+
 METHOD_FNS = {
     "lbp":   run_lbp,
     "color": run_color,
+    "nn":    run_neural,
+    "dnn":   run_neural,
+    "cnn":   run_neural,
+    "dsfm":  run_neural,
+    "osag":  run_neural,
 }
 
 
@@ -155,6 +203,8 @@ def run_extract_features(
         print(f"  Expected feature dim: {feature_dim}")
     elif method == "color":
         print(f"  Color params: grid={grid}  hist_bins={hist_bins}  hsv={use_hsv}")
+    else:
+        print(f"  Neural Network extraction: {method}")
 
     t_total = time.perf_counter()
 
@@ -172,7 +222,8 @@ def run_extract_features(
         # ── Extract features ──────────────────────────────────────────────────
         method_fn = METHOD_FNS[method]
         features = method_fn(
-            images, grid=grid, uniform=uniform,
+            images, method=method, dataset=dataset,
+            grid=grid, uniform=uniform,
             hist_bins=hist_bins, use_hsv=use_hsv,
         )
 
@@ -204,6 +255,11 @@ def run_extract_features(
             "grid":      grid,
             "hist_bins": hist_bins,
             "use_hsv":   use_hsv,
+        })
+    else:
+        feat_meta.update({
+            "emb_dim": 128,
+            "model_path": f"outputs/{dataset}/{method}/model/model.pt"
         })
 
     with open(out_dir / "meta.json", "w") as f:
