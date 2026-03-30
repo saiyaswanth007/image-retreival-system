@@ -22,7 +22,7 @@
 #      - Flowers102 (additional dataset — chosen for domain diversity)
 #
 #    Pipeline order per method:
-#      preprocess → train (neural only) → extract_features → retrieve → evaluate
+#      download → sanity_check → preprocess → train → extract → retrieve → evaluate
 #
 #  Usage:
 #      chmod +x run.sh
@@ -54,10 +54,40 @@ echo ""
 START_TIME=$SECONDS
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHASE 0: PREPROCESSING
+# PHASE 0: DATA DOWNLOAD (Optional)
 # ─────────────────────────────────────────────────────────────────────────────
 echo "╔═══════════════════════════════════════════════════════════════════╗"
-echo "║  PHASE 0: PREPROCESSING                                         ║"
+echo "║  PHASE 0: DATA DOWNLOAD                                         ║"
+echo "╚═══════════════════════════════════════════════════════════════════╝"
+
+if [ ! -d "data" ] || [ -z "$(ls -A data)" ]; then
+    echo "▶ Data directory missing or empty. Downloading datasets..."
+    $PYTHON src/stages/download_datasets.py --datasets "${DATASETS[@]}"
+else
+    echo "▶ Data already present in data/. Skipping download."
+    echo "  (Run 'rm -rf data' first if you want a fresh download)"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PHASE 1: SANITY CHECK
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo "╔═══════════════════════════════════════════════════════════════════╗"
+echo "║  PHASE 1: DATA SANITY CHECK                                     ║"
+echo "╚═══════════════════════════════════════════════════════════════════╝"
+
+for ds in "${DATASETS[@]}"; do
+    echo ""
+    echo "▶ Sanity check: $ds"
+    $PYTHON src/stages/sanity_check.py --dataset "$ds"
+done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PHASE 2: PREPROCESSING
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo "╔═══════════════════════════════════════════════════════════════════╗"
+echo "║  PHASE 2: PREPROCESSING                                         ║"
 echo "╚═══════════════════════════════════════════════════════════════════╝"
 
 for ds in "${DATASETS[@]}"; do
@@ -67,11 +97,11 @@ for ds in "${DATASETS[@]}"; do
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHASE 1: TRAINING (Neural methods only)
+# PHASE 3: TRAINING (Neural methods only)
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════════╗"
-echo "║  PHASE 1: TRAINING (Tasks 2, 3, 4, 5)                           ║"
+echo "║  PHASE 3: TRAINING (Tasks 2, 3, 4, 5)                           ║"
 echo "╚═══════════════════════════════════════════════════════════════════╝"
 
 for ds in "${DATASETS[@]}"; do
@@ -83,11 +113,11 @@ for ds in "${DATASETS[@]}"; do
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHASE 2: FEATURE EXTRACTION (All methods)
+# PHASE 4: FEATURE EXTRACTION (All methods)
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════════╗"
-echo "║  PHASE 2: FEATURE EXTRACTION (Tasks 1, 2, 3, 4, 5, 6)           ║"
+echo "║  PHASE 4: FEATURE EXTRACTION (Tasks 1, 2, 3, 4, 5, 6)           ║"
 echo "╚═══════════════════════════════════════════════════════════════════╝"
 
 for ds in "${DATASETS[@]}"; do
@@ -99,11 +129,11 @@ for ds in "${DATASETS[@]}"; do
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHASE 3: RETRIEVAL (All methods)
+# PHASE 5: RETRIEVAL (All methods)
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════════╗"
-echo "║  PHASE 3: TOP-K RETRIEVAL                                       ║"
+echo "║  PHASE 5: TOP-K RETRIEVAL                                       ║"
 echo "╚═══════════════════════════════════════════════════════════════════╝"
 
 for ds in "${DATASETS[@]}"; do
@@ -115,11 +145,11 @@ for ds in "${DATASETS[@]}"; do
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHASE 4: EVALUATION (All methods)
+# PHASE 6: EVALUATION (All methods)
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════════╗"
-echo "║  PHASE 4: EVALUATION — Precision, Recall, mAP                   ║"
+echo "║  PHASE 6: EVALUATION — Precision, Recall, mAP                   ║"
 echo "╚═══════════════════════════════════════════════════════════════════╝"
 
 for ds in "${DATASETS[@]}"; do
@@ -131,11 +161,11 @@ for ds in "${DATASETS[@]}"; do
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHASE 5: COMPARATIVE ANALYSIS TABLE
+# PHASE 7: COMPARATIVE ANALYSIS TABLE
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════════╗"
-echo "║  PHASE 5: COMPARATIVE ANALYSIS TABLE                             ║"
+echo "║  PHASE 7: COMPARATIVE ANALYSIS TABLE                             ║"
 echo "╚═══════════════════════════════════════════════════════════════════╝"
 echo " Generating side-by-side Precision / Recall / mAP tables..."
 
@@ -146,11 +176,11 @@ for ds in "${DATASETS[@]}"; do
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHASE 6: ROBUSTNESS ANALYSIS (Task 3 requirement)
+# PHASE 8: ROBUSTNESS ANALYSIS (Task 3 requirement)
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════════╗"
-echo "║  PHASE 6: ROBUSTNESS TO TRANSFORMATIONS (CNN & OSAG)             ║"
+echo "║  PHASE 8: ROBUSTNESS TO TRANSFORMATIONS (CNN & OSAG)             ║"
 echo "╚═══════════════════════════════════════════════════════════════════╝"
 
 for ds in "${DATASETS[@]}"; do
@@ -162,11 +192,11 @@ for ds in "${DATASETS[@]}"; do
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHASE 7: CROSS-DATASET GENERALIZATION
+# PHASE 9: CROSS-DATASET GENERALIZATION
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════════╗"
-echo "║  PHASE 7: CROSS-DATASET ZERO-SHOT EVALUATION                    ║"
+echo "║  PHASE 9: CROSS-DATASET ZERO-SHOT EVALUATION                    ║"
 echo "╚═══════════════════════════════════════════════════════════════════╝"
 echo " Training on CIFAR-10, evaluating on MNIST (and vice versa)..."
 
